@@ -1,8 +1,8 @@
 {
   "rewrites": [
     {
-      "source": "/.well-known/ai-tool/:slug.json",
-      "destination": "/api/well-known/:slug"
+      "source": "/.well-known/ai-tool/nft-alpha-scanner.json",
+      "destination": "/.well-known/ai-tool/nft-alpha-scanner.json"
     }
   ]
 }

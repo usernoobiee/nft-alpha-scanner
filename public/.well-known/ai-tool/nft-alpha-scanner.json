@@ -1,0 +1,57 @@
+{
+  "type": "https://ercs.ethereum.org/ERCS/erc-8257#tool-manifest-v1",
+  "name": "NFT Alpha Scanner",
+  "description": "Scores an NFT collection using observable OpenSea floor, volume, sales, holder, and recent activity signals, with an optional ETH budget check.",
+  "endpoint": "https://nft-alpha-scanner-xi.vercel.app/api",
+  "creatorAddress": "0x000000000000000000000000000000000000dEaD",
+  "inputs": {
+    "type": "object",
+    "properties": {
+      "collectionSlug": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 100,
+        "description": "OpenSea collection slug."
+      },
+      "maxPriceEth": {
+        "type": "number",
+        "minimum": 0,
+        "description": "Optional maximum floor price in ETH."
+      }
+    },
+    "required": ["collectionSlug"],
+    "additionalProperties": false
+  },
+  "outputs": {
+    "type": "object",
+    "properties": {
+      "collectionSlug": { "type": "string" },
+      "signal": { "type": "string", "enum": ["BUY", "WATCH", "AVOID"] },
+      "score": { "type": "number" },
+      "confidence": { "type": "number" },
+      "riskLevel": { "type": "string", "enum": ["LOW", "MEDIUM", "HIGH"] },
+      "floorPriceEth": { "type": ["number", "null"] },
+      "floorChange7dPct": { "type": ["number", "null"] },
+      "volumeChange7dPct": { "type": ["number", "null"] },
+      "sales7d": { "type": ["number", "null"] },
+      "owners": { "type": ["number", "null"] },
+      "recentSales24h": { "type": "number" },
+      "budgetFit": { "type": ["boolean", "null"] },
+      "reasons": { "type": "array", "items": { "type": "string" } },
+      "risks": { "type": "array", "items": { "type": "string" } },
+      "methodology": { "type": "string" }
+    },
+    "required": [
+      "collectionSlug",
+      "signal",
+      "score",
+      "confidence",
+      "riskLevel",
+      "recentSales24h",
+      "reasons",
+      "risks",
+      "methodology"
+    ],
+    "additionalProperties": false
+  }
+}

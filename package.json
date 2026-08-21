@@ -1,0 +1,26 @@
+{
+  "name": "nft-alpha-scanner",
+  "version": "0.1.0",
+  "private": true,
+  "description": "ERC-8257 OpenSea Agent Tool that scores NFT collection opportunities from observable marketplace data.",
+  "type": "module",
+  "scripts": {
+    "build": "node --max-old-space-size=4096 ./node_modules/typescript/bin/tsc --noEmit",
+    "test": "tsx --test tests/**/*.test.ts",
+    "export-manifest": "npx @opensea/tool-sdk export src/manifest.ts",
+    "validate": "npx @opensea/tool-sdk validate manifest.json",
+    "hash-manifest": "npx @opensea/tool-sdk hash manifest.json",
+    "verify": "npx @opensea/tool-sdk verify \"$TOOL_METADATA_URL\"",
+    "deploy": "npx @opensea/tool-sdk deploy --host vercel",
+    "register": "npx @opensea/tool-sdk register --metadata \"$TOOL_METADATA_URL\" --network base"
+  },
+  "dependencies": {
+    "@opensea/tool-sdk": "0.28.5",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.8.0",
+    "tsx": "^4.20.3"
+  }
+}

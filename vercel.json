@@ -1,8 +1,0 @@
-{
-  "rewrites": [
-    {
-      "source": "/.well-known/ai-tool/nft-alpha-scanner.json",
-      "destination": "/.well-known/ai-tool/nft-alpha-scanner.json"
-    }
-  ]
-}

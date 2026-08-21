@@ -3,7 +3,7 @@
   "name": "NFT Alpha Scanner",
   "description": "Scores an NFT collection using observable OpenSea floor, volume, sales, holder, and recent activity signals, with an optional ETH budget check.",
   "endpoint": "https://nft-alpha-scanner-xi.vercel.app/api",
-  "creatorAddress": "0x000000000000000000000000000000000000dEaD",
+  "creatorAddress": "0xd200954Dee66E84BB9bc70cdd63dbE030932119C",
   "inputs": {
     "type": "object",
     "properties": {

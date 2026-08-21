@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.json",
+  "include": [
+    "src/types.ts",
+    "src/scoring.ts",
+    "src/opensea.ts",
+    "tests/**/*.ts"
+  ]
+}

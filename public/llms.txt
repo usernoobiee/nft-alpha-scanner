@@ -1,0 +1,12 @@
+# NFT Alpha Scanner
+
+An ERC-8257 OpenSea Agent Tool that evaluates an NFT collection using observable marketplace signals.
+
+Tool endpoint: /api
+Manifest: /.well-known/ai-tool/nft-alpha-scanner.json
+
+Input:
+- collectionSlug: OpenSea collection slug
+- maxPriceEth: optional ETH budget for floor-price fit
+
+Output includes a heuristic signal (BUY/WATCH/AVOID), score, confidence, floor momentum, volume momentum, recent sales, holder count, reasons, and risks.

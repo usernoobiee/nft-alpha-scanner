@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    {
+      "source": "/.well-known/ai-tool/:slug.json",
+      "destination": "/api/well-known/:slug"
+    }
+  ]
+}

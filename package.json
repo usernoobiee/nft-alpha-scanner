@@ -5,7 +5,9 @@
   "description": "ERC-8257 OpenSea Agent Tool that scores NFT collection opportunities from observable marketplace data.",
   "type": "module",
   "scripts": {
-    "build": "node --max-old-space-size=4096 ./node_modules/typescript/bin/tsc --noEmit",
+    "build": "npm run typecheck && npm run check:runtime",
+    "typecheck": "tsc --project tsconfig.typecheck.json --noEmit",
+    "check:runtime": "tsx scripts/check-runtime.ts",
     "test": "tsx --test tests/**/*.test.ts",
     "export-manifest": "npx @opensea/tool-sdk export src/manifest.ts",
     "validate": "npx @opensea/tool-sdk validate manifest.json",

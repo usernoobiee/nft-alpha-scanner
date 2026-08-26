@@ -18,7 +18,7 @@
   },
   "dependencies": {
     "@opensea/tool-sdk": "0.28.5",
-    "zod": "^4.0.0"
+    "zod": "4.3.6"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

@@ -1,29 +1,9 @@
 import { getCollectionStats, getRecentSaleCount } from "../src/opensea.js";
 import { scoreCollection } from "../src/scoring.js";
 
-// Let Vercel parse application/json into req.body. The previous raw-stream
-// implementation was fighting Vercel's serverless request lifecycle and
-// could see an empty stream even though the client sent JSON.
-export const config = {
-  api: {
-    bodyParser: true,
-  },
-};
-
 type ToolInput = {
   collectionSlug: string;
   maxPriceEth?: number;
-};
-
-type VercelRequestLike = {
-  method?: string;
-  body?: unknown;
-};
-
-type VercelResponseLike = {
-  status(code: number): VercelResponseLike;
-  setHeader(name: string, value: string): VercelResponseLike;
-  json(body: unknown): void;
 };
 
 function parseInput(value: unknown): ToolInput | null {
@@ -35,11 +15,16 @@ function parseInput(value: unknown): ToolInput | null {
     }
   }
 
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+  if (
+    typeof value !== "object" ||
+    value === null ||
+    Array.isArray(value)
+  ) {
     return null;
   }
 
-  const { collectionSlug, maxPriceEth } = value as Record<string, unknown>;
+  const { collectionSlug, maxPriceEth } =
+    value as Record<string, unknown>;
 
   if (
     typeof collectionSlug !== "string" ||
@@ -59,18 +44,77 @@ function parseInput(value: unknown): ToolInput | null {
   };
 }
 
-export default async function handler(req: VercelRequestLike, res: VercelResponseLike) {
+async function readBody(req: any): Promise<unknown> {
+  // Vercel/body-parser already parsed it
+  if (req.body !== undefined && req.body !== null) {
+    return req.body;
+  }
+
+  // Web Request compatibility
+  if (typeof req.text === "function") {
+    const text = await req.text();
+    return text ? JSON.parse(text) : null;
+  }
+
+  // Node/Vercel raw request stream
+  if (typeof req.on === "function") {
+    const chunks: Buffer[] = [];
+
+    await new Promise<void>((resolve, reject) => {
+      req.on("data", (chunk: Buffer | string) => {
+        chunks.push(
+          Buffer.isBuffer(chunk)
+            ? chunk
+            : Buffer.from(chunk)
+        );
+      });
+
+      req.on("end", () => resolve());
+      req.on("error", (err: Error) => reject(err));
+    });
+
+    const text = Buffer.concat(chunks).toString("utf8");
+
+    if (!text) return null;
+
+    return JSON.parse(text);
+  }
+
+  return null;
+}
+
+export default async function handler(req: any, res: any) {
   if (req.method !== "POST") {
-    res.status(405).setHeader("allow", "POST").json({ error: "Method not allowed" });
+    res
+      .status(405)
+      .setHeader("allow", "POST")
+      .json({ error: "Method not allowed" });
     return;
   }
 
-  const input = parseInput(req.body);
+  let body: unknown;
+
+  try {
+    body = await readBody(req);
+  } catch (error) {
+    console.error("Failed to read request body:", error);
+
+    res.status(400).json({
+      error: "Invalid JSON",
+    });
+
+    return;
+  }
+
+  const input = parseInput(body);
+
   if (!input) {
     res.status(400).json({
       error: "Invalid input",
-      details: "Expected collectionSlug and an optional non-negative maxPriceEth.",
+      details:
+        "Expected collectionSlug and an optional non-negative maxPriceEth.",
     });
+
     return;
   }
 
@@ -80,9 +124,17 @@ export default async function handler(req: VercelRequestLike, res: VercelRespons
       getRecentSaleCount(input.collectionSlug),
     ]);
 
-    res.status(200).json(scoreCollection(input, stats, recentSales24h));
+    res
+      .status(200)
+      .json(scoreCollection(input, stats, recentSales24h));
   } catch (error) {
-    console.error("NFT Alpha Scanner invocation failed:", error);
-    res.status(502).json({ error: "Marketplace data request failed" });
+    console.error(
+      "NFT Alpha Scanner invocation failed:",
+      error
+    );
+
+    res.status(502).json({
+      error: "Marketplace data request failed",
+    });
   }
 }

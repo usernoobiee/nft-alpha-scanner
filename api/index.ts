@@ -1,6 +1,14 @@
 import { getCollectionStats, getRecentSaleCount } from "../src/opensea.js";
 import { scoreCollection } from "../src/scoring.js";
 
+// Disable Vercel's automatic body parser so we can read the raw request stream.
+// This is required because the tool endpoint receives JSON POST bodies directly.
+export const config = {
+  api: {
+    bodyParser: false,
+  },
+};
+
 type ToolInput = {
   collectionSlug: string;
   maxPriceEth?: number;
@@ -45,18 +53,15 @@ function parseInput(value: unknown): ToolInput | null {
 }
 
 async function readBody(req: any): Promise<unknown> {
-  // Vercel/body-parser already parsed it
   if (req.body !== undefined && req.body !== null) {
     return req.body;
   }
 
-  // Web Request compatibility
   if (typeof req.text === "function") {
     const text = await req.text();
     return text ? JSON.parse(text) : null;
   }
 
-  // Node/Vercel raw request stream
   if (typeof req.on === "function") {
     const chunks: Buffer[] = [];
 

@@ -2,9 +2,10 @@ import type { VercelRequest, VercelResponse } from "@opensea/tool-sdk";
 import { toolHandler } from "../src/handler.js";
 
 /**
- * Vercel's Node runtime may expose the request payload as `body`, `rawBody`,
- * or (depending on parser configuration) a string/object. Normalize all of
- * those forms into the Web Request expected by the OpenSea Tool SDK.
+ * Normalize Vercel's possible request-body representations into the Web
+ * Request format expected by the OpenSea Tool SDK. Depending on runtime and
+ * parser configuration, Vercel can expose JSON as an object, string, Buffer,
+ * Uint8Array, or rawBody.
  */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const forwardedProto = req.headers["x-forwarded-proto"];
@@ -26,10 +27,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   let body: string | undefined;
 
   if (hasBody) {
-    if (typeof req.body === "string") {
-      body = req.body;
-    } else if (req.body !== undefined) {
-      body = JSON.stringify(req.body);
+    const candidate = req.body as unknown;
+
+    if (typeof candidate === "string") {
+      body = candidate;
+    } else if (Buffer.isBuffer(candidate)) {
+      body = candidate.toString("utf8");
+    } else if (candidate instanceof Uint8Array) {
+      body = Buffer.from(candidate).toString("utf8");
+    } else if (candidate !== undefined && candidate !== null) {
+      body = JSON.stringify(candidate);
     } else if (req.rawBody) {
       body = Buffer.from(req.rawBody).toString("utf8");
     }

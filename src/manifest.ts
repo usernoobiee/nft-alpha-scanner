@@ -1,7 +1,11 @@
 import { defineManifest } from "@opensea/tool-sdk";
 
 const endpoint = process.env.TOOL_ENDPOINT ?? "https://nft-alpha-scanner.vercel.app/api";
-const creatorAddress = process.env.CREATOR_ADDRESS ?? "0x000000000000000000000000000000000000dEaD";
+// The SDK validates manifest addresses as lowercase EVM addresses at invocation
+// time. Normalize Vercel's (often checksummed) value before handing it to it.
+const creatorAddress = (
+  process.env.CREATOR_ADDRESS ?? "0x000000000000000000000000000000000000dead"
+).toLowerCase();
 
 export const manifest = defineManifest({
   type: "https://ercs.ethereum.org/ERCS/erc-8257#tool-manifest-v1",

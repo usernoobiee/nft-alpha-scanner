@@ -16,31 +16,68 @@ function normalizeBody(req: VercelRequest): string | undefined {
   return undefined;
 }
 
-function queryBody(req: VercelRequest): string | undefined {
-  const collectionSlug = typeof req.query?.collectionSlug === "string" ? req.query.collectionSlug : undefined;
-  if (!collectionSlug) return undefined;
-  const maxPriceRaw = typeof req.query?.maxPriceEth === "string" ? req.query.maxPriceEth : undefined;
-  const maxPriceEth = maxPriceRaw === undefined ? undefined : Number(maxPriceRaw);
-  return JSON.stringify({
+async function diagnoseOpenSea(collectionSlug: string) {
+  const apiKey = process.env.OPENSEA_API_KEY;
+  if (!apiKey) {
+    return { ok: false, error: "OPENSEA_API_KEY is not configured" };
+  }
+
+  const headers = { accept: "application/json", "x-api-key": apiKey };
+  const statsUrl = `https://api.opensea.io/api/v2/collections/${encodeURIComponent(collectionSlug)}/stats`;
+  const eventsUrl = `https://api.opensea.io/api/v2/events/collection/${encodeURIComponent(collectionSlug)}?event_type=sale&limit=10`;
+
+  const [statsResult, eventsResult] = await Promise.allSettled([
+    fetch(statsUrl, { headers, cache: "no-store" }),
+    fetch(eventsUrl, { headers, cache: "no-store" }),
+  ]);
+
+  const summarize = async (result: PromiseSettledResult<Response>) => {
+    if (result.status === "rejected") {
+      return { ok: false, error: result.reason instanceof Error ? result.reason.message : String(result.reason) };
+    }
+    const text = await result.value.text();
+    return {
+      ok: result.value.ok,
+      status: result.value.status,
+      body: text.slice(0, 500),
+    };
+  };
+
+  return {
+    ok: statsResult.status === "fulfilled" && statsResult.value.ok && eventsResult.status === "fulfilled" && eventsResult.value.ok,
     collectionSlug,
-    ...(maxPriceEth !== undefined && Number.isFinite(maxPriceEth) ? { maxPriceEth } : {}),
-  });
+    apiKeyConfigured: true,
+    stats: await summarize(statsResult),
+    events: await summarize(eventsResult),
+  };
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (req.method !== "POST" && req.method !== "GET") {
+  // GET is intentionally a diagnostic endpoint; the registered ERC-8257 tool remains POST-only.
+  if (req.method === "GET") {
+    try {
+      const collectionSlug = typeof req.query?.collectionSlug === "string" ? req.query.collectionSlug : "boredapeyachtclub";
+      return res.status(200).json(await diagnoseOpenSea(collectionSlug));
+    } catch (error) {
+      console.error("[diagnostic] error:", error);
+      return res.status(500).json({
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
   try {
-    const body = normalizeBody(req) ?? queryBody(req);
-
+    const body = normalizeBody(req);
     if (!body) {
       return res.status(400).json({
         error: "Missing request body",
         method: req.method,
         contentType: req.headers["content-type"] ?? null,
-        hint: "POST JSON or use ?collectionSlug=boredapeyachtclub for a diagnostic GET",
       });
     }
 

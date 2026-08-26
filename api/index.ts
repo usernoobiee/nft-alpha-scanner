@@ -1,8 +1,6 @@
-import { toolHandler } from "../src/handler.js";
+import { getCollectionStats, getRecentSaleCount } from "../src/opensea.js";
+import { scoreCollection } from "../src/scoring.js";
 
-// Vercel's default body parser can leave req.body unavailable for some
-// deployments. Disable it and pass the raw request body to the OpenSea SDK
-// as a standard Web Request. This keeps the SDK's POST/JSON validation intact.
 export const config = {
   api: {
     bodyParser: false,
@@ -11,8 +9,6 @@ export const config = {
 
 type VercelRequestLike = {
   method?: string;
-  url?: string;
-  headers: Record<string, string | string[] | undefined>;
   on(event: "data" | "end" | "error", listener: (...args: any[]) => void): void;
 };
 
@@ -20,13 +16,16 @@ type VercelResponseLike = {
   status(code: number): VercelResponseLike;
   setHeader(name: string, value: string): VercelResponseLike;
   send(body: string): void;
-  end(): void;
+};
+
+type ToolInput = {
+  collectionSlug: string;
+  maxPriceEth?: number;
 };
 
 function readRawBody(req: VercelRequestLike): Promise<string> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
-
     req.on("data", (chunk: Buffer | string) => {
       chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
     });
@@ -35,39 +34,61 @@ function readRawBody(req: VercelRequestLike): Promise<string> {
   });
 }
 
-export default async function handler(req: VercelRequestLike, res: VercelResponseLike) {
-  try {
-    const protocol =
-      typeof req.headers["x-forwarded-proto"] === "string"
-        ? req.headers["x-forwarded-proto"]
-        : "https";
-    const host =
-      typeof req.headers.host === "string" ? req.headers.host : "localhost";
-    const url = `${protocol}://${host}${req.url ?? "/"}`;
-    const method = req.method ?? "GET";
+function json(res: VercelResponseLike, status: number, body: unknown): void {
+  res.status(status).setHeader("content-type", "application/json");
+  res.send(JSON.stringify(body));
+}
 
-    const headers = new Headers();
-    for (const [key, value] of Object.entries(req.headers)) {
-      if (value !== undefined) {
-        headers.set(key, Array.isArray(value) ? value.join(", ") : value);
-      }
+function parseInput(body: string): ToolInput | null {
+  try {
+    const value: unknown = JSON.parse(body);
+    if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
+
+    const { collectionSlug, maxPriceEth } = value as Record<string, unknown>;
+    if (
+      typeof collectionSlug !== "string" ||
+      collectionSlug.trim().length === 0 ||
+      collectionSlug.length > 100 ||
+      (maxPriceEth !== undefined &&
+        (typeof maxPriceEth !== "number" ||
+          !Number.isFinite(maxPriceEth) ||
+          maxPriceEth < 0))
+    ) {
+      return null;
     }
 
-    const body = method === "GET" || method === "HEAD" ? undefined : await readRawBody(req);
-    const webRequest = new Request(url, {
-      method,
-      headers,
-      body,
+    return {
+      collectionSlug: collectionSlug.trim(),
+      ...(maxPriceEth === undefined ? {} : { maxPriceEth }),
+    };
+  } catch {
+    return null;
+  }
+}
+
+export default async function handler(req: VercelRequestLike, res: VercelResponseLike) {
+  if (req.method !== "POST") {
+    res.status(405).setHeader("allow", "POST");
+    return json(res, 405, { error: "Method not allowed" });
+  }
+
+  const input = parseInput(await readRawBody(req));
+  if (!input) {
+    return json(res, 400, {
+      error: "Invalid input",
+      details: "Expected collectionSlug and an optional non-negative maxPriceEth.",
     });
+  }
 
-    const webResponse = await toolHandler(webRequest);
+  try {
+    const [stats, recentSales24h] = await Promise.all([
+      getCollectionStats(input.collectionSlug),
+      getRecentSaleCount(input.collectionSlug),
+    ]);
 
-    res.status(webResponse.status);
-    webResponse.headers.forEach((value, key) => res.setHeader(key, value));
-    res.send(await webResponse.text());
+    return json(res, 200, scoreCollection(input, stats, recentSales24h));
   } catch (error) {
-    console.error("Tool endpoint error:", error);
-    res.status(500).setHeader("content-type", "application/json");
-    res.send(JSON.stringify({ error: "Internal tool error" }));
+    console.error("NFT Alpha Scanner invocation failed:", error);
+    return json(res, 502, { error: "Marketplace data request failed" });
   }
 }

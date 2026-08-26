@@ -1,8 +1,6 @@
 import { getCollectionStats, getRecentSaleCount } from "../src/opensea.js";
 import { scoreCollection } from "../src/scoring.js";
 
-// Disable Vercel's automatic body parser so we can read the raw request stream.
-// This is required because the tool endpoint receives JSON POST bodies directly.
 export const config = {
   api: {
     bodyParser: false,
@@ -23,16 +21,11 @@ function parseInput(value: unknown): ToolInput | null {
     }
   }
 
-  if (
-    typeof value !== "object" ||
-    value === null ||
-    Array.isArray(value)
-  ) {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
     return null;
   }
 
-  const { collectionSlug, maxPriceEth } =
-    value as Record<string, unknown>;
+  const { collectionSlug, maxPriceEth } = value as Record<string, unknown>;
 
   if (
     typeof collectionSlug !== "string" ||
@@ -52,14 +45,31 @@ function parseInput(value: unknown): ToolInput | null {
   };
 }
 
+function parseJsonText(text: string): unknown {
+  const trimmed = text.trim();
+  if (!trimmed) return null;
+
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    // Handle a runtime adapter that passes JSON as an escaped string.
+    try {
+      const decoded = JSON.parse(JSON.stringify(trimmed).slice(1, -1));
+      if (typeof decoded === "string") return JSON.parse(decoded);
+    } catch {
+      return null;
+    }
+    return null;
+  }
+}
+
 async function readBody(req: any): Promise<unknown> {
   if (req.body !== undefined && req.body !== null) {
-    return req.body;
+    return typeof req.body === "string" ? parseJsonText(req.body) : req.body;
   }
 
   if (typeof req.text === "function") {
-    const text = await req.text();
-    return text ? JSON.parse(text) : null;
+    return parseJsonText(await req.text());
   }
 
   if (typeof req.on === "function") {
@@ -67,22 +77,13 @@ async function readBody(req: any): Promise<unknown> {
 
     await new Promise<void>((resolve, reject) => {
       req.on("data", (chunk: Buffer | string) => {
-        chunks.push(
-          Buffer.isBuffer(chunk)
-            ? chunk
-            : Buffer.from(chunk)
-        );
+        chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
       });
-
-      req.on("end", () => resolve());
-      req.on("error", (err: Error) => reject(err));
+      req.on("end", resolve);
+      req.on("error", reject);
     });
 
-    const text = Buffer.concat(chunks).toString("utf8");
-
-    if (!text) return null;
-
-    return JSON.parse(text);
+    return parseJsonText(Buffer.concat(chunks).toString("utf8"));
   }
 
   return null;
@@ -90,24 +91,16 @@ async function readBody(req: any): Promise<unknown> {
 
 export default async function handler(req: any, res: any) {
   if (req.method !== "POST") {
-    res
-      .status(405)
-      .setHeader("allow", "POST")
-      .json({ error: "Method not allowed" });
+    res.status(405).setHeader("allow", "POST").json({ error: "Method not allowed" });
     return;
   }
 
   let body: unknown;
-
   try {
     body = await readBody(req);
   } catch (error) {
     console.error("Failed to read request body:", error);
-
-    res.status(400).json({
-      error: "Invalid JSON",
-    });
-
+    res.status(400).json({ error: "Invalid JSON" });
     return;
   }
 
@@ -116,10 +109,8 @@ export default async function handler(req: any, res: any) {
   if (!input) {
     res.status(400).json({
       error: "Invalid input",
-      details:
-        "Expected collectionSlug and an optional non-negative maxPriceEth.",
+      details: "Expected collectionSlug and an optional non-negative maxPriceEth.",
     });
-
     return;
   }
 
@@ -129,17 +120,9 @@ export default async function handler(req: any, res: any) {
       getRecentSaleCount(input.collectionSlug),
     ]);
 
-    res
-      .status(200)
-      .json(scoreCollection(input, stats, recentSales24h));
+    res.status(200).json(scoreCollection(input, stats, recentSales24h));
   } catch (error) {
-    console.error(
-      "NFT Alpha Scanner invocation failed:",
-      error
-    );
-
-    res.status(502).json({
-      error: "Marketplace data request failed",
-    });
+    console.error("NFT Alpha Scanner invocation failed:", error);
+    res.status(502).json({ error: "Marketplace data request failed" });
   }
 }
